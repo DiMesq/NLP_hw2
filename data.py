@@ -1,12 +1,29 @@
+import os.path
 import numpy as np
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 
 import utils
 
 
-BATCH_SIZE = 32
 MAX_LEN = 85
+
+def get_table_lookup(data_dir='vocab'):
+    return utils.load_pkl_data('ind2vec.p', data_dir='vocab')
+
+def get_loaders(batch_size, data_dir='hw2_data', test=False):
+    train_ind = utils.load_pkl_data('snli_train_ind.p')
+    val_ind = utils.load_pkl_data('snli_val_ind.p')
+    train_target = utils.load_pkl_data('snli_train_target.p')
+    val_target = utils.load_pkl_data('snli_val_target.p')
+    if test:
+        train_dataset = SNLI_Dataset(train_ind[:5*batch_size], train_target)
+    else:
+        train_dataset = SNLI_Dataset(train_ind, train_target)
+    val_dataset = SNLI_Dataset(val_ind, val_target)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
+    return train_loader, val_loader
 
 def get_max_len(train_data, train_val):
     def max_len(data):
@@ -14,8 +31,9 @@ def get_max_len(train_data, train_val):
     return max(max_len(train_data), max_len(train_val))
 
 def collate_fn(datum):
-    premise_data = np.zeros((BATCH_SIZE, MAX_LEN), dtype=np.int64)
-    hypo_data = np.zeros((BATCH_SIZE, MAX_LEN), dtype=np.int64)
+    batch_size = len(datum)
+    premise_data = np.zeros((batch_size, MAX_LEN), dtype=np.int64)
+    hypo_data = np.zeros((batch_size, MAX_LEN), dtype=np.int64)
     premise_lens = []
     hypo_lens = []
     targets = []
@@ -31,10 +49,9 @@ def collate_fn(datum):
             torch.from_numpy(hypo_data),
             torch.LongTensor(premise_lens),
             torch.LongTensor(hypo_lens),
-            torch.LongTensor(indices)
             torch.LongTensor(targets))
 
-class SNLIDataset(Dataset):
+class SNLI_Dataset(Dataset):
     max_len = MAX_LEN
     def __init__(self, data, target):
         self.data = [[premise[:self.max_len], hypo[:self.max_len]] for premise, hypo in data]
